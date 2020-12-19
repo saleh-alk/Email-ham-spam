@@ -1,0 +1,379 @@
+---
+title: "STA141BHW2"
+output:
+  pdf_document: default
+  html_document: default
+---
+For this project, I first started with reading all the files but I wanted to the ham and spam so I can make their own rows for isSpam = True and isSpam = False. I used lapply with function read.lines to read each file. After that I created a function dividing both the head, body, and attachments which I used later to create my variables. I used the if else function to check to see if the email had a header and body and if it didn't then it will be labeled as na. In creating my function I splitted the head and body with the match to find " and to use it to create a header variable and body. I used the grep function to find the right match of the attachments. After getting that for each variable I created a function to count and tell whether its true or false.After that I turned  them into a dataframe of its own column. For each variable I mostly used grep and regmatches to find each part of the header or body. After getting all my variables I combined all of them and made a whole column of FALSE for ispam on the first file and vice versa on the seconf file. After that I combined both dataframes giving me one whole dataframe that I can explore. For the exploration I made a histogram for the logistical variables and a boxplot. 
+I also splitted the dataframe in to test and train for my logistic model. 
+
+The histogram for each shows a large amount of isSpam = False which is accurate since most of it is from the ham data. From their we can see the ratio of each variable whether is ham or spam to see if its a good variable. The boxplot gave me a lot of outliers for both percentCapitals and bodyCharacterCount.
+
+Finally, by looking at the p-values the model shows that a lot of the variables are not helpful so we can omit them and create a better model that is more accurate.
+
+
+
+
+
+
+I got some help from Piazza, lecture (regular expression), stack overflow (errors in creating datatframe), and rbloggers (for modeling)
+
+
+```{r echo=TRUE, cache=TRUE, results=TRUE, warning=FALSE, comment=FALSE, warning=FALSE}
+
+library(readr)
+all_files_ham = unlist(lapply(c('Downloads/SpamAssassinTrain/easy_ham', 'Downloads/SpamAssassinTrain/easy_ham2', 'Downloads/SpamAssassinTrain/hard_ham'), list.files, full.names= TRUE))
+
+all_files_spam = unlist(lapply(c( 'Downloads/SpamAssassinTrain/spam', 'Downloads/SpamAssassinTrain/spam2' ), list.files, full.names= TRUE))
+
+#'Downloads/SpamAssassinTrain/spam', 'Downloads/SpamAssassinTrain/spam2
+library(stringr)
+#length(all_files)
+
+
+files1 <-lapply(all_files_ham, readLines)
+files2 <- lapply(all_files_spam, readLines)
+
+
+
+
+getVars <- function(text){
+  divideIndex = match('', text )
+  
+  if (is.na(divideIndex) == TRUE){
+    return(list(attachment = NA, header= NA, body=NA))
+  }else {
+  
+  header = text[1:(divideIndex)]
+  body = text[-(1:divideIndex)]
+  
+  
+  attachment = grep('boundary','',grep('Content-Type', body, value = TRUE))
+  
+  
+  
+
+  
+  
+ return(list( body = body, header = header, attachment = attachment ))
+  }
+}
+
+file_divided1 <- lapply(files1, getVars)
+file_divided2 <- lapply(files2, getVars)
+
+##num lines in body
+numLinesInBody <- function(x){
+  return(length(grep('', x)))
+}
+numLinesInBody = lapply(file_divided1, numLinesInBody)
+
+## is re
+isRe <- function(x){
+  k <-grep('Subject', x$header, value = TRUE)
+  return(if(sum(grepl('Re', k))>= 1){TRUE} else {FALSE} )
+}
+
+isRe1= lapply(file_divided1, isRe)
+isRe1 = data.frame(isRe = unlist(isRe1))
+
+isRe2= lapply(file_divided2, isRe)
+isRe2 = data.frame(isRe = unlist(isRe2))
+##
+bodyCharacterCount <- function(x){
+  return(sum(nchar(x$body, type = 'bytes')))
+}
+
+bodyCharacterCount1 = lapply(file_divided1, bodyCharacterCount)
+bodyCharacterCount1 = data.frame(bodyCharacterCount = unlist(bodyCharacterCount1))
+
+bodyCharacterCount2 = lapply(file_divided2, bodyCharacterCount)
+bodyCharacterCount2 = data.frame(bodyCharacterCount = unlist(bodyCharacterCount2))
+
+##
+subjectQuestCount <- function(x){
+  subject<- grep('Subject', x$header, value = TRUE)
+  quest <- gregexpr('\\?*',subject)
+  k <- as.character(regmatches(subject, quest))
+  return(sum(str_count(string=k, pattern="\\?")))
+ 
+}
+subjectQuestCount1 = lapply(file_divided1, subjectQuestCount)
+subjectQuestCount1 = data.frame(subjectQuestCount = unlist(subjectQuestCount1))
+
+subjectQuestCount2 = lapply(file_divided2, subjectQuestCount)
+subjectQuestCount2 = data.frame(subjectQuestCount = unlist(subjectQuestCount2))
+
+##  
+subjectExclamationCount <- function(x){
+  subject<- grep('Subject', x$header, value = TRUE)
+  quest <- gregexpr('\\!*',subject)
+  k <- as.character(regmatches(subject, quest))
+  return(sum(str_count(string=k, pattern="\\!")))
+}
+subjectExclamationCount1 = lapply(file_divided1, subjectExclamationCount)
+subjectExclamationCount1 = data.frame(subjectExclamationCount = unlist(subjectExclamationCount1))
+
+subjectExclamationCount2 = lapply(file_divided2, subjectExclamationCount)
+subjectExclamationCount2 = data.frame(subjectExclamationCount = unlist(subjectExclamationCount2))
+
+##
+priority <- function(x){
+  l <- grepl('^X-Priority|^X-Smell-Priority', x$header)
+  #high <- grepl('high',l, useBytes = TRUE )
+  if (sum(l) >= 1){TRUE} else{FALSE}
+}
+
+priority1 = lapply(file_divided1, priority)
+priority1 = data.frame(priority= unlist(priority1))
+
+priority2 = lapply(file_divided2, priority)
+priority2 = data.frame(priority= unlist(priority2))
+
+##
+numRecipients <- function(x){
+  To_Cc <- grep('^To|^Cc', x$header, value = TRUE)
+  email <- grep('@',To_Cc, useBytes = TRUE)
+  return(str_count(To_Cc, '@'))
+}
+numRecipients1 = lapply(file_divided1, numRecipients)
+numRecipients1 = data.frame(numRecipients = unlist(numRecipients1))
+
+numRecipients2 = lapply(file_divided2, numRecipients)
+numRecipients2 = data.frame(numRecipients = unlist(numRecipients2))
+
+##
+percentCapitals <- function(x){
+  caps <- grep('[A-Z]', x$body, value= TRUE)
+  match <- regmatches(caps, regexpr('[A-Z]*',caps))
+  return(sum(str_count(match, '[A-Z]'))/(sum(str_count(x$body, '[A-Z]'))+sum(str_count(x$body,'[a-z]')))*100)
+  
+}
+percentCapitals1 = lapply(file_divided1, percentCapitals)
+percentCapitals1 = data.frame(percentCapitals = unlist(percentCapitals1))
+
+percentCapitals2 = lapply(file_divided2, percentCapitals)
+percentCapitals2 = data.frame(percentCapitals = unlist(percentCapitals2))
+
+##
+isInReplyTo <- function(x){
+   inreply <- grepl('^In-Reply-To', x$header)
+   if (sum(inreply)>=1){TRUE}else{FALSE}
+  
+}
+isInReplyTo1 = lapply(file_divided1, isInReplyTo)
+isInReplyTo1 = data.frame(isInReplyTo = unlist(isInReplyTo1))
+
+isInReplyTo2 = lapply(file_divided2, isInReplyTo)
+isInReplyTo2 = data.frame(isInReplyTo = unlist(isInReplyTo2))
+
+##
+sortedRecipients <- function(x){
+  To_Cc <- grep('^To|^Cc', x$header, value = TRUE)
+  recipients <- grep('@', To_Cc, value = TRUE)
+  recipients <- gsub('To: ', '', recipients)
+  if (is.unsorted(recipients) == TRUE){FALSE} else{TRUE}
+  
+}
+sortedRecipients1 = lapply(file_divided1, sortedRecipients)
+sortedRecipients1 = data.frame(sortedRecipients = unlist(sortedRecipients1))
+
+sortedRecipients2 = lapply(file_divided2, sortedRecipients)
+sortedRecipients2 = data.frame(sortedRecipients = unlist(sortedRecipients2))
+
+##
+subjectPunctuationCheck <- function(x){
+  subject<- grep('Subject', x$header, value = TRUE)
+  punct <- sum(grepl('[A-Z]+[[:punct:]]+[A-Z]|[A-Z]+[0-9]+[A-Z] ', subject, ignore.case = TRUE, useBytes = TRUE))
+  if (punct >=1){TRUE} else{FALSE}
+}
+
+subjectPunctuationCheck1 = lapply(file_divided1, subjectPunctuationCheck)
+subjectPunctuationCheck1 = data.frame(subjectPunctuationCheck = unlist(subjectPunctuationCheck1))
+
+subjectPunctuationCheck2 = lapply(file_divided2, subjectPunctuationCheck)
+subjectPunctuationCheck2 = data.frame(subjectPunctuationCheck = unlist(subjectPunctuationCheck2))
+
+##
+hourSent <- function(x){
+  from <- grep('From', x$header, value =TRUE)
+  ll <- grep('[0-9]$', from, value = TRUE)
+  hours <-regmatches(ll, regexpr('[0-9]{2}:', ll))
+  gsub(':','', hours)
+}
+
+hourSent1 = lapply(file_divided1, hourSent)
+hourSent1 = data.frame(hourSent = unlist(hourSent1))
+
+hourSent2 = lapply(file_divided2, hourSent)
+hourSent2 = data.frame(hourSent = unlist(hourSent2))
+
+##
+multipartText <- function(x){
+  cont <- grep('Content-Type:', x$header, value =TRUE)
+  multi<- grepl('multipart', cont)
+  if (sum(multi) >= 1){TRUE} else{FALSE}
+}
+
+multipartText1 = lapply(file_divided1, multipartText)
+multipartText1 = data.frame(multipartText = unlist(multipartText1))
+
+multipartText2 = lapply(file_divided2, multipartText)
+multipartText2 = data.frame(multipartText = unlist(multipartText2))
+
+##
+containsImages <- function(x){
+  cont <- grep('Content-Type:', x$header, value =TRUE)
+  images<- grepl('html', cont, ignore.case = TRUE)
+  if (sum(images) >= 1){TRUE} else{FALSE}
+}
+
+containsImages1 = lapply(file_divided1, containsImages)
+containsImages1 = data.frame(containsImages = unlist(containsImages1))
+
+containsImages2 = lapply(file_divided2, containsImages)
+containsImages2 = data.frame(containsImages = unlist(containsImages2))
+
+##
+isPGPsigned <- function(x){
+  sign <- grepl('PGP|GPG', x$header)
+  if (sum(sign) >= 1){TRUE} else{FALSE}
+}
+
+isPGPsigned1 = lapply(file_divided1, isPGPsigned)
+isPGPsigned1 = data.frame(isPGPsigned = unlist(isPGPsigned1))
+
+isPGPsigned2 = lapply(file_divided2, isPGPsigned)
+isPGPsigned2 = data.frame(isPGPsigned = unlist(isPGPsigned2))
+
+##
+subjectSpamWords <- function(x){
+   subject<- grep('Subject', x$header, value = TRUE)
+   spam_words <-grepl('viagra|pounds|free|weight|guarantee|millions|dollars|credit|risk|pre-scription|generic|drug|money|back|credit card', subject)
+   if (sum(spam_words) >= 1){TRUE} else {FALSE}
+  
+}
+
+subjectSpamWords1 = lapply(file_divided1, subjectSpamWords)
+subjectSpamWords1 = data.frame(subjectSpamWords = unlist(subjectSpamWords1))
+
+subjectSpamWords2 = lapply(file_divided2, subjectSpamWords)
+subjectSpamWords2 = data.frame(subjectSpamWords = unlist(subjectSpamWords2))
+
+isYelling <- function(x){
+  subject <- grep('Subject', x$header, value = T)
+  caps <- grepl('^[A-Z]+$', subject)
+  if (sum(caps) >= 1) {TRUE} else{FALSE}
+  
+}
+isYelling1 = lapply(file_divided1, isYelling)
+isYelling1 = data.frame(isYelling = unlist(isYelling1))
+
+isYelling2 = lapply(file_divided2, isYelling)
+isYelling2 = data.frame(isYelling = unlist(isYelling2))
+
+isDear <- function(x){
+  intro <- grepl('^Dear', x$body)
+  if (sum(intro) >= 1){TRUE} else {FALSE}
+}
+
+isDear1 = lapply(file_divided1, isDear)
+isDear1 = data.frame(isDear = unlist(isDear1))
+
+isDear2 = lapply(file_divided2, isDear)
+isDear2 = data.frame(isDear = unlist(isDear2))
+```
+
+```{r}
+
+
+df1 <- cbind(isRe1, bodyCharacterCount1, priority1, sortedRecipients1, percentCapitals1, isInReplyTo1, subjectPunctuationCheck1,  multipartText1, containsImages1, isPGPsigned1, subjectSpamWords1, subjectExclamationCount1, subjectQuestCount1, isYelling1, isDear1)
+df1['isSpam'] = FALSE
+
+
+
+```
+
+```{r}
+
+df2 <- cbind(isRe2, bodyCharacterCount2, priority2, sortedRecipients2, percentCapitals2, isInReplyTo2, subjectPunctuationCheck2,  multipartText2, containsImages2, isPGPsigned2, subjectSpamWords2, subjectExclamationCount2, subjectQuestCount2, isYelling2, isDear2)
+df2['isSpam'] = TRUE
+
+
+```
+
+```{r}
+df <- rbind(df1,df2)
+head(df)
+```
+
+```{r}
+df[c(1,2,6:10)]
+```
+
+
+Exploration:
+```{r}
+summary(df[c(2,5)])
+```
+
+
+```{r}
+library(ggplot2)
+
+logistic_hist <-  function(name){
+
+ggplot(df, aes(x = name, fill = isSpam, color = isSpam))+
+  geom_histogram(stat = 'count')+
+  xlab(colnames(name))
+  
+  
+  
+}
+
+lapply(df[c(1,3,4,6:14)], logistic_hist)
+```
+
+
+
+
+```{r}
+
+
+logist_boxplot <- function(name){
+  ggplot(df, aes(x = isSpam, y = name))+
+    geom_boxplot()
+   
+}
+
+lapply(df[c(2,5)], logist_boxplot )
+```
+
+Regression
+```{r}
+
+ggplot(df, aes(x = percentCapitals, y = isSpam))+
+  geom_line()+
+  geom_point()
+
+ggplot(df, aes(x = bodyCharacterCount, y = percentCapitals))+
+  geom_line()+
+  geom_point()
+
+```
+
+
+
+Modeling 
+```{r}
+
+train_ind <- sample(nrow(df), 3500)
+train<- df[train_ind,]
+test <- df[-train_ind,]
+
+logist <- glm(isSpam ~ isRe+bodyCharacterCount+priority+sortedRecipients+percentCapitals+isInReplyTo+subjectPunctuationCheck+multipartText+containsImages+isPGPsigned+subjectSpamWords+subjectExclamationCount+subjectQuestCount+isYelling+isDear, data = train, family = "binomial")
+summary(logist)
+```
+
+
+
